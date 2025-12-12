@@ -26,14 +26,14 @@ amcl:
     pf_z: 0.85                      #粒子过滤器群体密度
     recovery_alpha_fast: 0.0        #快速平均权重过滤器的指数衰减率，用于决定何时通过添加随机姿势进行恢复。
     recovery_alpha_slow: 0.0        #慢速平均权重过滤器的指数衰减率，用于决定何时通过添加随机姿势进行恢复。
-    resample_interval: 2            #RT orig: 1 重采样之前所需的过滤器更新次数
-    robot_model_type: "nav2_amcl::OmniMotionModel" #插件类的完全限定类型。
+    resample_interval: 1            #重采样之前所需的过滤器更新次数
+    robot_model_type: "nav2_amcl::DifferentialMotionModel" #插件类的完全限定类型。
     #选项为“nav2_amcl::DifferentialMotionModel”和“nav2_amcl::OmniMotionModel”。
 
     save_pose_rate: 0.5             #将最后估计的姿势和协方差存储到参数服务器的最大速率（Hz）
     sigma_hit: 0.02                 #模型的 z_hit 部分中使用的高斯模型的标准差
     tf_broadcast: true              #将其设置为 false 以防止 amcl 发布全局框架和里程计框架之间的变换
-    transform_tolerance: 0.5        #RT orig:0.3 发布转换的容差
+    transform_tolerance: 0.3        #发布转换的容差
     update_min_a: 0.06              #执行过滤器更新之前需要进行旋转运动。
     update_min_d: 0.025             #执行过滤器更新之前需要进行平移运动
     z_hit: 0.5                      #模型的 z_hit 部分的混合权重，所有使用的 z 权重之和必须为 1。
@@ -61,7 +61,7 @@ amcl_rclcpp_node:
 bt_navigator:
   ros__parameters:
     use_sim_time: False
-    transform_tolerance: 0.5 #变换容差
+    transform_tolerance: 0.1 #变换容差
     goal_reached_tol: 0.25 #接受姿势作为目标的容忍度(m)
     global_frame: map
     robot_base_frame: base_footprint
@@ -86,7 +86,7 @@ bt_navigator_rclcpp_node:
 controller_server:
   ros__parameters:
     use_sim_time: False                             
-    controller_frequency: 30.0                      #RT orig:30 运行控制器的频率 (hz)
+    controller_frequency: 30.0                      #运行控制器的频率 (hz)
     controller_plugins: ["FollowPath"]              # 用于处理请求和参数的控制器插件的映射名称列表
     odom_topic: /odom_combined                      #里程计话题名称
 
@@ -101,7 +101,7 @@ controller_server:
     goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
       xy_goal_tolerance: 0.15
-      yaw_goal_tolerance: 0.2 #org 1.75
+      yaw_goal_tolerance: 1.75
       stateful: True
 
     FollowPath:
@@ -123,7 +123,7 @@ controller_server:
       iteration_count: 4 #org: 1迭代次数
       prune_distance: 1.5 #路径上距离机器人最近点的距离（米）
       enforce_path_inversion: false
-      transform_tolerance: 0.5 #使用 TF（s）进行数据转换的时间容差
+      transform_tolerance: 0.1 #使用 TF（s）进行数据转换的时间容差
       temperature: 0.3 #org: 0.5根据成本选择轨迹，0表示使用成本最佳的控制，巨大的值将导致仅取所有轨迹的平均值而不考虑成本。
       gamma: 0.015 #平滑度（高）和低能耗（低）之间的权衡,保持默认值
       motion_model: "DiffDrive" #org DiffDrive 用于轨迹规划的所需运动模型。选项包括DiffDrive、Omni或Ackermann。
@@ -205,49 +205,74 @@ controller_server_rclcpp_node:
 local_costmap:
   local_costmap:
     ros__parameters:
-      update_frequency: 5.0  #org: 5.0 成本地图更新频率
-      publish_frequency: 2.0 #将成本图发布到话题的频率
-      global_frame: odom_combined      #全局框架
-      robot_base_frame: base_footprint #机器人底座框架
-      use_sim_time: False  #仿真时间
-      rolling_window: true #成本地图是否应随机器人基座框架滚动
-      width: 8             #代价地图的宽度（m）
-      height: 8            #代价地图的高度（m）
-      resolution: 0.05     #代价地图1像素的分辨率，以米为单位
-      #robot_radius: 0.20   #机器人半径，如果未提供足迹坐标，则使用机器人半径。
-      #original footprint: "[ [-0.288, -0.303], [-0.288, 0.303],[0.288,0.303],[0.288, -0.303] ]"
-      footprint: "[ [-0.488, -0.503], [-0.488, 0.503], [0.488, 0.503], [0.488, -0.503] ]"
-      plugins: ["voxel_layer", "inflation_layer"] #插件包括:{“体素层”，“膨胀层”}
-      inflation_layer:                             #膨胀层参数
-        plugin: "nav2_costmap_2d::InflationLayer"  #膨胀层插件。
-        cost_scaling_factor: 3.0                   #成本缩放因子，决定障碍物成本随距离的递减速度。
-        inflation_radius: 0.55                     #org: 0.35 膨胀半径       
-        
+      update_frequency: 10.0              # hogere frequentie voor snellere reactie
+      publish_frequency: 5.0
+      global_frame: odom_combined
+      robot_base_frame: base_footprint
+      use_sim_time: False
+      rolling_window: true
+      width: 8
+      height: 8
+      resolution: 0.05
+      footprint: "[[-0.488, -0.503], [-0.488, 0.503], [0.488, 0.503], [0.488, -0.503]]"
+
+      plugins: ["voxel_layer", "obstacle_layer", "inflation_layer", "keepout_filter"]
+
+      # Inflatie rond obstakels
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.55
+
+      # 3D voxel layer
       voxel_layer:
-        plugin: "nav2_costmap_2d::VoxelLayer"      #体素层插件。
+        plugin: "nav2_costmap_2d::VoxelLayer"
         enabled: True
         publish_voxel_map: True
-        origin_z: 0.0                              #体素地图的起始Z坐标
-        z_resolution: 0.05                         #体素地图的Z轴分辨率
-        z_voxels: 16                               #体素地图的Z轴体素数量
-        max_obstacle_height: 2.0                   #可检测障碍物的最大高度（米）
-        mark_threshold: 0                          #标记体素的阈值
-        observation_sources: scan                  #观测源
+        origin_z: 0.0
+        z_resolution: 0.05
+        z_voxels: 16
+        max_obstacle_height: 2.0
+        mark_threshold: 0
+        observation_sources: scan
         scan:
           topic: /scan
-          max_obstacle_height: 2.0                  #可检测障碍物的最大高度（米）
-          clearing: True                            #是否启用障碍物清除功能
-          marking: True                             #是否启用障碍物标记功能
-          data_type: "LaserScan"                    #数据类型
-          raytrace_max_range: 10.0                  #控制光线追踪从代价地图中清除障碍物的最大范围 
-          raytrace_min_range: 0.0                  #控制光线追踪从代价地图中清除障碍物的最大范围 
-          obstacle_max_range: 2.5                   #控制代价地图上标记障碍物的最大范围
-          obstacle_min_range: 0.0                   #控制代价地图上标记障碍物的最小范围
+          max_obstacle_height: 2.0
+          clearing: True
+          marking: True
+          data_type: "LaserScan"
+          raytrace_max_range: 3.0          # kortere clearing range
+          obstacle_max_range: 1.5          # detecteer obstakels dichtbij
+          obstacle_min_range: 0.05
 
-      always_send_full_costmap: True                 #是否每次更新时都发送完整的成本图，而不是更新
+      # Klassieke 2D obstakel layer voor robuustheid
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: True
+        observation_sources: scan
+        scan:
+          topic: /scan
+          max_obstacle_height: 2.0
+          clearing: True
+          marking: True
+          data_type: "LaserScan"
+          raytrace_max_range: 3.0
+          obstacle_max_range: 1.5
+          obstacle_min_range: 0.05
+
+      # No-go zones ook lokaal respecteren
+      keepout_filter:
+        plugin: "nav2_costmap_2d::KeepoutFilter"
+        enabled: True
+        mask_topic: /keepout_mask
+        filter_info_topic: /keepout_filter_info
+
+      always_send_full_costmap: True
+
   local_costmap_client:
     ros__parameters:
       use_sim_time: False
+
   local_costmap_rclcpp_node:
     ros__parameters:
       use_sim_time: False
@@ -255,47 +280,78 @@ local_costmap:
 global_costmap:
   global_costmap:
     ros__parameters:
-      update_frequency: 1.0             #成本地图更新频率
-      publish_frequency: 1.0            #将成本图发布到话题的频率
-      global_frame: map                 #全局框架
-      robot_base_frame: base_footprint  #机器人底座框架
-      use_sim_time: False               #仿真时间 
-      #robot_radius: 0.20                #机器人半径
-      #original footprint: "[ [-0.288, -0.303], [-0.288, 0.303],[0.288,0.303],[0.288, -0.303] ]"
+      update_frequency: 1.0
+      publish_frequency: 1.0
+      global_frame: map
+      robot_base_frame: base_footprint
+      use_sim_time: False
       footprint: "[ [-0.488, -0.503], [-0.488, 0.503], [0.488, 0.503], [0.488, -0.503] ]"
-      resolution: 0.05                  #全局地图1像素的分辨率，以米为单位
+      resolution: 0.05
       track_unknown_space: true
 
-      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
-                   
-      obstacle_layer:  #障碍层参数
-        plugin: "nav2_costmap_2d::ObstacleLayer" #障碍层插件
+      plugins: ["static_layer", "voxel_layer", "obstacle_layer", "keepout_filter", "inflation_layer"]
+
+      voxel_layer:
+        plugin: "nav2_costmap_2d::VoxelLayer"
+        enabled: true
+        publish_voxel_map: true
+        origin_z: 0.0
+        z_resolution: 0.05
+        z_voxels: 10
+        mark_threshold: 0
+        combination_method: 1
+        observation_sources: cloud
+        cloud:
+          topic: /camera/depth/points
+          sensor_frame: camera_link
+          data_type: "PointCloud2"
+          marking: true
+          clearing: true
+          min_obstacle_height: 0.0
+          max_obstacle_height: 2.0
+          obstacle_range: 5.0
+          raytrace_range: 5.0
+
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
-        observation_sources: scan                  #观测源
+        observation_sources: scan
         scan:
           topic: /scan
-          max_obstacle_height: 2.0                 #可检测障碍物的最大高度（米）
-          clearing: True                           #是否启用障碍物清除功能
-          marking: True                            #是否启用障碍物标记功能
-          data_type: "LaserScan"                   #数据类型
-          raytrace_max_range: 10.0                 #控制光线追踪从代价地图中清除障碍物的最大范围 
-          raytrace_min_range: 0.0                  #控制光线追踪从代价地图中清除障碍物的最大范围 
-          obstacle_max_range: 2.5                  #控制代价地图上标记障碍物的最大范围
-          obstacle_min_range: 0.0                  #控制代价地图上标记障碍物的最小范围
-      static_layer: #静态层参数
-        plugin: "nav2_costmap_2d::StaticLayer"     #静态层插件
+          max_obstacle_height: 2.0
+          clearing: True
+          marking: True
+          data_type: "LaserScan"
+          raytrace_max_range: 10.0
+          obstacle_max_range: 2.5
+          obstacle_min_range: 0.0
+
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
         map_subscribe_transient_local: True
-      inflation_layer: #膨胀层参数
-        plugin: "nav2_costmap_2d::InflationLayer"  #膨胀层插件
-        cost_scaling_factor: 3.0                   #成本缩放因子，决定障碍物成本随距离的递减速度。
-        inflation_radius: 0.55                     #org: 0.3 膨胀半径
-      always_send_full_costmap: True               #是否每次更新时都发送完整的成本图，而不是更新
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.55
+        
+      keepout_filter:
+        plugin: "nav2_costmap_2d::KeepoutFilter"
+        enabled: True
+        mask_topic: /keepout_mask
+        filter_info_topic: /keepout_filter_info   # topic waar polygonen van verboden zones gepubliceerd worden
+
+
+      always_send_full_costmap: True
+
   global_costmap_client:
     ros__parameters:
       use_sim_time: False
+
   global_costmap_rclcpp_node:
     ros__parameters:
       use_sim_time: False
+
 
 map_server:
   ros__parameters:
@@ -332,7 +388,7 @@ smoother_server:
     smoother_plugins: ["simple_smoother"]
     simple_smoother:
       plugin: "nav2_smoother::SimpleSmoother"
-      tolerance: 0.5  #TF transform tolerance.
+      tolerance: 0.1  #TF transform tolerance.
       max_its: 1000
       do_refinement: True
 
