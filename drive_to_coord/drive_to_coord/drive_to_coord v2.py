@@ -8,52 +8,41 @@ from rclpy.action import ActionClient
 from rclpy.time import Time
 
 
-class DriveToCoord(Node):
+class subpub(Node):
 	def __init__(self):
 		super().__init__('drive_to_goal')
 		self.get_logger().info('DriveToGoal init')
 
-		self.last_BehaviorTreeNode = None
-		self.last_btDriveCoord = None
-		self.last_peoplesearchcoord = None
-		
-		self.currentgoal = None
-		self._goal_handle = None
+		self.BehaviorTreeNode_last = None
+		self.BehaviorTreeNode_newdata = False
+		self.btDriveCoord_last = None
+		self.pfcoord_last = None
+		self.pfcoord_enable = False
 
-		# Action client
-		self._action_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
-
-		# Publishers
-		self.status_pub = self.create_publisher(String, '/drive_to_coord_status', 10)
-		self.cmd_vel_pub = self.create_publisher(Twist, '/cmd_vel', 1)
-		self.extendedzone_pub = self.create_publisher(String, '/allow_extended_zone', 1)
-
-		# Subscribers
 		self.BehaviorTreeNode_sub = self.create_subscription(String, '/BehaviorTreeNode', self.BehaviorTreeNode_callback, 1)
-		self.btDriveCoord_sub = self.create_subscription(PoseStamped, '/btDriveCoord', self.btDriveCoord_callback, 1)
-		self.BTnode_sub = self.create_subscription(PoseStamped, '/peoplesearchcoord', self.peoplesearchcoord_callback, 1)
-
-		# Wachten op nav server & Status versturen
-		self._action_client.wait_for_server()
-		self.get_logger().info('DriveToGoal node gestart.')
-		self.publish_status(10, "gestart")
-
+		self.btCoord_sub = self.create_subscription(PoseStamped, '/btDriveCoord', self.btCoord_callback, 1)
+		self.pfCoord_sub = None
 
 	def BehaviorTreeNode_callback(self, msg):
-		self.get_logger().info("Nieuw topic ontvangen van BehaviorTree.")
 		self.last_BehaviorTreeNode = msg.data.strip()
 
-		self.actiondistribute()
-
-	def btDriveCoord_callback(self, msg):
+	def btCoord_callback(self, msg):
 		self.last_btDriveCoord = msg
-		self.publish_status(11, "coördinaat opgeslagen")
-		self.get_logger().info('Nieuw coördinaat ontvangen.')
 
-	def peoplesearchcoord_callback(self, msg):
-		#msg.header.frame_id = "base_link"
+	def pfCoord_callback(self, msg):
 		self.last_peoplesearchcoord = msg
-		self.actiondistribute()
+
+	def pfCoord_sub_disable(self):
+		if self.pfcoord_enable == True:
+			self.destroy_subscription(self.pfCoord_sub)
+			self.pfcoord_enable == False
+
+	def pfCoord_sub_enable(self):
+		if pfcoord_enable == False:
+			self.pfCoord_sub = self.create_subscription(PoseStamped, '/peoplesearchcoord', self.pfCoord_callback, 1)
+			self.pfcoord_enable == True
+
+	##################
 
 	def actiondistribute(self):
 		
