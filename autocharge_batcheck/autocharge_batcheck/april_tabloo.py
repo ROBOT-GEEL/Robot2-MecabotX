@@ -276,7 +276,8 @@ class AprilTagAbsolutePose(Node):
 
         ########################################################
 
-
+        cv2.imshow("debug", frame)
+        cv2.waitKey(1)
 
 
 def main():
@@ -295,7 +296,7 @@ def main():
 
     rclpy.shutdown()
 
-
+    cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":
